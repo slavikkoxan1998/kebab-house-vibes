@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, useInView } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Flame, MapPin, Phone, Clock, Utensils, Leaf, SlidersHorizontal, Plus, Minus } from "lucide-react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Flame, MapPin, Phone, Clock, Utensils, Leaf, SlidersHorizontal, Plus, Minus, ShoppingCart, X } from "lucide-react";
 import { toast } from "sonner";
 import heroKebab from "@/assets/hero-kebab.webp";
 import durumImg from "@/assets/durum.webp";
@@ -20,7 +20,14 @@ const MAPS_URL =
 const PHONE_NUMBER = "+420 000 000 000";
 const WHATSAPP_URL = `https://wa.me/${PHONE_NUMBER.replace(/\D/g, "")}`;
 
-type MenuItem = { n: number; name: string; desc?: string; price: number; customizable?: boolean };
+type MenuItem = {
+  n: number;
+  name: string;
+  desc?: string;
+  price: number;
+  customizable?: boolean;
+  category?: "kebab" | "burger";
+};
 type MenuSection = { title: string; items: MenuItem[]; icon?: string };
 
 const MENU: MenuSection[] = [
@@ -87,6 +94,15 @@ const MENU: MenuSection[] = [
       { n: 23, name: "Velký talíř stripsy + hranolky", desc: "4 ks stripsy se salátem, omáčkou a hranolkami", price: 190 },
     ],
   },
+  {
+    title: "Burger",
+    items: [
+      { n: 24, name: "Klasický hovězí burger", desc: "hovězí placka, salát, rajče, cibule a burger omáčka", price: 155, customizable: true, category: "burger" },
+      { n: 25, name: "Cheeseburger", desc: "hovězí placka, tažený sýr, salát a omáčka", price: 165, customizable: true, category: "burger" },
+      { n: 26, name: "Kuřecí burger", desc: "křupavé kuřecí filé, salát, rajče a omáčka", price: 150, customizable: true, category: "burger" },
+      { n: 27, name: "BBQ slaninový burger", desc: "hovězí placka, slanina, cheddar a BBQ omáčka", price: 175, customizable: true, category: "burger" },
+    ],
+  },
 ];
 
 const EXTRAS = [
@@ -106,6 +122,14 @@ const LAVASH_TYPES = [
   { id: "klasicky", label: "Klasický" },
   { id: "syrovy", label: "Sýrový zlatý" },
   { id: "spenatovy", label: "Špenátový zelený" },
+] as const;
+
+// Stejné id, jiné popisky pro burgery (typ housky místo typu lavaše) —
+// drží se stejný union typ ve stavu ItemCustomizeru bez ohledu na kategorii.
+const BUN_TYPES = [
+  { id: "klasicky", label: "Klasická houska" },
+  { id: "syrovy", label: "Sezamová houska" },
+  { id: "spenatovy", label: "Briošková houska" },
 ] as const;
 
 const SPICE_LEVELS = [
@@ -191,7 +215,165 @@ function OpenStatusBadge({ className = "" }: { className?: string }) {
   );
 }
 
+// --- Košík (globální stav přes celé menu, přepočet ceny při každé změně) --
+type CartLine = {
+  id: string;
+  name: string;
+  unitPrice: number;
+  qty: number;
+  optionsLabel?: string;
+};
+
+type CartContextValue = {
+  lines: CartLine[];
+  addLine: (line: Omit<CartLine, "id">) => void;
+  removeLine: (id: string) => void;
+  setQty: (id: string, qty: number) => void;
+  total: number;
+  count: number;
+};
+
+const CartContext = createContext<CartContextValue | null>(null);
+
+function useCart() {
+  const ctx = useContext(CartContext);
+  if (!ctx) throw new Error("useCart must be used within CartProvider");
+  return ctx;
+}
+
+function CartProvider({ children }: { children: React.ReactNode }) {
+  const [lines, setLines] = useState<CartLine[]>([]);
+
+  function addLine(line: Omit<CartLine, "id">) {
+    setLines((prev) => [...prev, { ...line, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }]);
+  }
+  function removeLine(id: string) {
+    setLines((prev) => prev.filter((l) => l.id !== id));
+  }
+  function setQty(id: string, qty: number) {
+    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, qty: Math.max(1, qty) } : l)));
+  }
+
+  const total = useMemo(() => lines.reduce((sum, l) => sum + l.unitPrice * l.qty, 0), [lines]);
+  const count = useMemo(() => lines.reduce((sum, l) => sum + l.qty, 0), [lines]);
+
+  return (
+    <CartContext.Provider value={{ lines, addLine, removeLine, setQty, total, count }}>
+      {children}
+    </CartContext.Provider>
+  );
+}
+
+function CartButton() {
+  const { count, total } = useCart();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        aria-label="Košík"
+        className="relative flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
+      >
+        <ShoppingCart className="h-4 w-4" />
+        {count > 0 && <span className="hidden sm:inline">{total},- Kč</span>}
+        {count > 0 && (
+          <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+            {count}
+          </span>
+        )}
+      </button>
+      <CartDrawer open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
+function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { lines, removeLine, setQty, total, count } = useCart();
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex justify-end">
+      <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        initial={{ x: 40, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.25 }}
+        className="relative h-full w-full max-w-sm bg-card border-l border-border p-6 overflow-y-auto"
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <h3 className="text-xl uppercase tracking-wide text-gradient-neon">Košík</h3>
+          <button onClick={onClose} aria-label="Zavřít" className="p-1 text-muted-foreground hover:text-primary">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {lines.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Košík je zatím prázdný.</p>
+        ) : (
+          <>
+            <ul className="space-y-4">
+              {lines.map((l) => (
+                <li key={l.id} className="border-b border-border/50 pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{l.name}</p>
+                      {l.optionsLabel && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">{l.optionsLabel}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => removeLine(l.id)}
+                      aria-label="Odebrat"
+                      className="p-1 text-muted-foreground hover:text-primary"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2 rounded-full border border-border px-2 py-0.5">
+                      <button
+                        onClick={() => setQty(l.id, l.qty - 1)}
+                        aria-label="Ubrat"
+                        className="p-1 text-muted-foreground hover:text-primary"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="w-4 text-center text-sm font-semibold">{l.qty}</span>
+                      <button
+                        onClick={() => setQty(l.id, l.qty + 1)}
+                        aria-label="Přidat"
+                        className="p-1 text-muted-foreground hover:text-primary"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <span className="font-semibold text-primary">{l.unitPrice * l.qty},- Kč</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 flex items-center justify-between text-lg font-semibold">
+              <span>Celkem ({count} ks)</span>
+              <span className="text-primary">{total},- Kč</span>
+            </div>
+            <button
+              onClick={() => {
+                toast.success("Objednávka odeslána do kuchyně", { description: `${count} ks · ${total},- Kč` });
+                onClose();
+              }}
+              className="mt-4 w-full rounded-full bg-gradient-to-r from-neon-red to-neon-ember px-5 py-3 text-sm font-semibold uppercase tracking-wide text-primary-foreground transition-transform duration-300 hover:scale-[1.02]"
+            >
+              Dokončit objednávku
+            </button>
+          </>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
 function ItemCustomizer({ item, onClose }: { item: MenuItem; onClose: () => void }) {
+  const { addLine } = useCart();
+  const breadOptions = item.category === "burger" ? BUN_TYPES : LAVASH_TYPES;
+  const breadLabel = item.category === "burger" ? "Typ housky" : "Typ pečiva";
   const [sizeId, setSizeId] = useState<(typeof SIZES)[number]["id"]>("standard");
   const [lavashId, setLavashId] = useState<(typeof LAVASH_TYPES)[number]["id"]>("klasicky");
   const [spiceId, setSpiceId] = useState<(typeof SPICE_LEVELS)[number]["id"]>("zadna");
@@ -210,10 +392,18 @@ function ItemCustomizer({ item, onClose }: { item: MenuItem; onClose: () => void
   }
 
   function addToOrder() {
-    const lavash = LAVASH_TYPES.find((l) => l.id === lavashId)!;
+    const size = SIZES.find((s) => s.id === sizeId)!;
+    const bread = breadOptions.find((l) => l.id === lavashId)!;
     const spice = SPICE_LEVELS.find((s) => s.id === spiceId)!;
-    toast.success(`${item.name} přidán do objednávky`, {
-      description: `${qty}× · ${lavash.label} · ${spice.label} · ${total},- Kč`,
+    const addOnsPrice = addOns.reduce((sum, id) => sum + (ADD_ONS.find((a) => a.id === id)?.price ?? 0), 0);
+    const addOnLabels = addOns
+      .map((id) => ADD_ONS.find((a) => a.id === id)?.label)
+      .filter(Boolean) as string[];
+    const unitPrice = item.price + size.extra + addOnsPrice;
+    const optionsLabel = [size.label, bread.label, spice.label, ...addOnLabels].join(" · ");
+    addLine({ name: item.name, unitPrice, qty, optionsLabel });
+    toast.success(`${item.name} přidán do košíku`, {
+      description: `${qty}× · ${optionsLabel} · ${unitPrice * qty},- Kč`,
     });
     onClose();
   }
@@ -231,8 +421,8 @@ function ItemCustomizer({ item, onClose }: { item: MenuItem; onClose: () => void
           </PickerButton>
         ))}
       </PickerRow>
-      <PickerRow label="Typ pečiva">
-        {LAVASH_TYPES.map((l) => (
+      <PickerRow label={breadLabel}>
+        {breadOptions.map((l) => (
           <PickerButton key={l.id} active={lavashId === l.id} onClick={() => setLavashId(l.id)}>
             {l.label}
           </PickerButton>
@@ -431,16 +621,18 @@ function SectionTitle({ plain, accent }: { plain: string; accent: string }) {
 
 function Index() {
   return (
-    <div className="min-h-screen text-foreground overflow-x-hidden">
-      <Nav />
-      <Hero />
-      <About />
-      <Menu />
-      <Gallery />
-      <Contact />
-      <Footer />
-      <WhatsAppButton />
-    </div>
+    <CartProvider>
+      <div className="min-h-screen text-foreground overflow-x-hidden">
+        <Nav />
+        <Hero />
+        <About />
+        <Menu />
+        <Gallery />
+        <Contact />
+        <Footer />
+        <WhatsAppButton />
+      </div>
+    </CartProvider>
   );
 }
 
@@ -479,6 +671,7 @@ function Nav() {
         </nav>
         <div className="flex items-center gap-4">
           <OpenStatusBadge className="hidden sm:inline-flex" />
+          <CartButton />
           <a href={IG_URL} target="_blank" rel="noreferrer" aria-label="Instagram"
              className="p-2 rounded-full border border-border hover:border-primary hover:glow-red transition-all duration-300">
             <InstagramIcon className="h-4 w-4" />
@@ -662,6 +855,7 @@ function MenuFront({ title, img }: { title: string; img: string }) {
 
 function MenuBack({ section }: { section: MenuSection }) {
   const [openItem, setOpenItem] = useState<number | null>(null);
+  const { addLine } = useCart();
   return (
     <div className="h-full w-full p-6 overflow-y-auto">
       <h3 className="text-2xl uppercase tracking-wide text-gradient-neon">{section.title}</h3>
@@ -676,13 +870,13 @@ function MenuBack({ section }: { section: MenuSection }) {
               </span>
               <span className="flex items-center gap-2 whitespace-nowrap">
                 <span className="text-primary font-bold">{it.price},- Kč</span>
-                {it.customizable && (
+                {it.customizable ? (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenItem((o) => (o === it.n ? null : it.n));
                     }}
-                    aria-label="Přizpůsobit kebab"
+                    aria-label="Přizpůsobit"
                     className={`rounded-md border p-1.5 transition-colors ${
                       openItem === it.n
                         ? "border-primary bg-primary/10 text-primary"
@@ -690,6 +884,18 @@ function MenuBack({ section }: { section: MenuSection }) {
                     }`}
                   >
                     <SlidersHorizontal className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addLine({ name: it.name, unitPrice: it.price, qty: 1 });
+                      toast.success(`${it.name} přidán do košíku`, { description: `1× · ${it.price},- Kč` });
+                    }}
+                    aria-label="Přidat do košíku"
+                    className="rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
                   </button>
                 )}
               </span>
