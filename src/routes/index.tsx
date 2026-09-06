@@ -554,12 +554,17 @@ function FlipCard({
   front,
   back,
   delay = 0,
+  flipped,
+  onOpen,
+  onClose,
 }: {
   front: React.ReactNode;
   back: React.ReactNode;
   delay?: number;
+  flipped: boolean;
+  onOpen: () => void;
+  onClose: () => void;
 }) {
-  const [flipped, setFlipped] = useState(false);
   return (
     <motion.div
       initial={{ opacity: 0, y: 40 }}
@@ -567,9 +572,9 @@ function FlipCard({
       viewport={{ once: true, margin: "-80px" }}
       transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
       className="[perspective:1200px] h-[360px] cursor-pointer"
-      onClick={() => setFlipped((f) => !f)}
-      onMouseEnter={() => setFlipped(true)}
-      onMouseLeave={() => setFlipped(false)}
+      onClick={() => (flipped ? onClose() : onOpen())}
+      onMouseEnter={onOpen}
+      onMouseLeave={onClose}
     >
       <motion.div
         className="relative h-full w-full [transform-style:preserve-3d]"
@@ -784,6 +789,7 @@ function About() {
 }
 
 function Menu() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
   return (
     <Section id="menu">
       <SectionTitle plain="NAŠE" accent="MENU" />
@@ -795,6 +801,9 @@ function Menu() {
           <FlipCard
             key={section.title}
             delay={(i % 3) * 0.1}
+            flipped={openIndex === i}
+            onOpen={() => setOpenIndex(i)}
+            onClose={() => setOpenIndex((cur) => (cur === i ? null : cur))}
             front={<MenuFront title={section.title} img={menuImage(section.title)} />}
             back={<MenuBack section={section} />}
           />
