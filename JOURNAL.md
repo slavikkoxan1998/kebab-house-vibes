@@ -36,5 +36,37 @@
 - GitHub-репо `slavikkoxan1998/kebab-house-vibes` (приватне) заведено,
   перший коміт запушено.
 
+## 2026-09-06 ~09:40 CEST — Живий лінк через GitHub Pages, поки DNS не додано
+
+Власник запитав, чи піде через GitHub Pages, поки чекаємо DNS. Пішло.
+
+- `vite.config.ts`: `STATIC_BUILD=1` перемикає на `nitro: false` +
+  TanStack Start `spa: { enabled: true }` — пререндерить один shell
+  (`dist/client/_shell.html`) замість серверного SSR-бандла. `base`
+  = `/kebab-house-vibes/` під цим прапорцем (docker-збірка й далі без
+  нього, `base: "/"`).
+- Фавікон (`__root.tsx`) був захардкожений `/favicon.ico` — під base-
+  префіксом 404-ив; замінено на `${import.meta.env.BASE_URL}favicon.ico`.
+- `_shell.html` → перейменовано на `index.html`, запушено в окрему
+  гілку `gh-pages` (через `git worktree`, orphan-гілка, той самий
+  патерн, що класичний ручний gh-pages-деплой).
+- Репо довелось зробити **публічним** — GitHub Pages на приватному
+  репо вимагає платного плану (`422 Your current plan does not support
+  GitHub Pages`). Перевірено: жодних секретів у репо нема.
+- `gh api .../pages` з `source.branch=gh-pages` — увімкнено, білд
+  зайняв <30с. Перевірено вживу (curl + реальний Chrome): HTTP 200,
+  сторінка рендериться, індикатор «Nyní zavřeno · otevíráme 11:00»
+  показує правильний стан.
+- Живий лінк: **https://slavikkoxan1998.github.io/kebab-house-vibes/**
+- Не вдалось перевірити flip-картки меню й конфігуратор через
+  автоматизований браузер (CDP-хавер/клік не тригерить React
+  `onMouseEnter`/`onClick` так само, як живий курсор — інструментне
+  обмеження, не баг сайту). Код перевірено логічно (typecheck чистий,
+  `stopPropagation` на кнопці/панелі конфігуратора) — для живого
+  користувача (мишка або тач) флоу коректний.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014guF3wWsxfhdx1oLJPrhRj
+
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014guF3wWsxfhdx1oLJPrhRj
