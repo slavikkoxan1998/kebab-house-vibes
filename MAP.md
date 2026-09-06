@@ -42,6 +42,16 @@ SSR) замість плоского `index.html`. Неонова/dark тема,
   й SSR-варіанті). Оновлювати: `STATIC_BUILD=1 npm run build` →
   `dist/client/_shell.html` → `index.html` → закомітити в `gh-pages`.
 
+## Košík (2026-09-06)
+
+Globální stav napříč celým menu (`CartContext` v `index.tsx`, žádný
+samostatný soubor — malý rozsah). `CartButton` v `Nav` (ikona + počet +
+suma) otevírá `CartDrawer` (přidat/odebrat/změnit množství, živý
+přepočet). Konfigurovatelné položky (döner/dürüm/burger) přidávají přes
+`ItemCustomizer`, jednoduché položky mají vlastní tlačítko rychlého
+přidání. "Dokončit objednávku" je demo (toast), nikam se needesílá —
+stejně jako zbytek webu, backend není součástí zadání.
+
 ## Що змінено проти оригінального Lovable-експорту
 
 - Фото (`src/assets/*.jpg` → `.webp`, стиснуто + downscale до 800px/1600px
@@ -60,6 +70,9 @@ SSR) замість плоского `index.html`. Неонова/dark тема,
   оригінальний AI-асистент на першому сайті (демо, не продакшн).
 - Номер телефону (`PHONE_NUMBER` в `index.tsx`) лишається плейсхолдером
   `+420 000 000 000` — **навмисно**, Власник підтвердив 2026-09-06.
+- Секція **Burger** (4 позиції) — референс "Kebab Spot" бургерів не мав,
+  додано в тому ж стилі меню. Реальний **кошик** на всю сторінку — див.
+  розділ нижче.
 
 ## Файли
 

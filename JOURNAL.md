@@ -70,3 +70,44 @@ Claude-Session: https://claude.ai/code/session_014guF3wWsxfhdx1oLJPrhRj
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014guF3wWsxfhdx1oLJPrhRj
+
+## 2026-09-06 ~10:15 CEST — Burger menu + reálný košík s přepočtem
+
+Vlastník požádal o burger menu "z referencí" a fungující košík (přidání
+položky → přepočet ceny). Referenční screenshoty ("Kebab Spot" app,
+poslané dřív) obsahovaly jen kebab/falafel položky s tlačítkem "В кошик"
+v horní liště — burgery samotné v referencích nebyly, sekci jsem doplnil
+sám ve stejném stylu menu (4 položky, ceny v rozsahu existujícího menu).
+
+- `MENU`: nová sekce **Burger** (n24–27) — Klasický hovězí, Cheeseburger,
+  Kuřecí, BBQ slaninový. `category: "burger"`, `customizable: true`.
+- `ItemCustomizer` teď rozlišuje kategorii: burger dostává "Typ housky"
+  (Klasická/Sezamová/Briošková) místo "Typ pečiva" — sdílí stejné `id`
+  jako `LAVASH_TYPES`, jen jiné popisky (`BUN_TYPES`), takže typ stavu
+  zůstal beze změny.
+- **Globální košík** (`CartContext` přes celou stránku):
+  - `CartButton` v `Nav` — ikona + počet kusů (badge) + suma, otevírá
+    `CartDrawer`.
+  - `CartDrawer` — seznam položek, +/- množství, odebrání, živý přepočet
+    celkové ceny a počtu kusů, "Dokončit objednávku" (demo — toast, nikam
+    se neodesílá, stejně jako zbytek webu).
+  - Konfigurovatelné položky (döner/dürüm/burger) přidávají do košíku
+    přes `ItemCustomizer.addToOrder()` (jednotková cena vč. velikosti/
+    přídavků, `qty` samostatně — recalculace při změně množství v košíku
+    funguje správně).
+  - Jednoduché položky (saláty, talíře, box, vegetariánské, stripsy)
+    dostaly vlastní tlačítko rychlého přidání vedle ceny (výchozí 1×).
+- Ověřeno naživo v reálném prohlížeči (GitHub Pages): `get_page_text` +
+  `javascript_tool` (`.click()` na tlačítkách přes DOM, protože klik na
+  zadní stranu flip-karty je stejné známé omezení automatizovaného
+  prohlížeče jako dřív — `backface-visibility: hidden` dělá zadní stranu
+  neklikatelnou, dokud se karta vizuálně neotočí; reálný uživatel s myší
+  tímto omezením netrpí). Přidání položky do košíku i přepočet při změně
+  množství fungují správně (4× Míchaný salát → 360,- Kč, badge v Nav
+  odpovídá).
+- `npx tsc --noEmit` čistý, `STATIC_BUILD=1 npm run build` prošel.
+- Nasazeno na oba cíle: `gh-pages` větev (živý odkaz) + přebuild/restart
+  Docker kontejneru `kebab_house_vibes` (čeká na DNS, viz `MAP.md`).
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014guF3wWsxfhdx1oLJPrhRj
